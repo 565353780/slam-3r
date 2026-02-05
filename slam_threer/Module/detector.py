@@ -5,6 +5,7 @@ from slam3r.pipeline.recon_offline_pipeline import scene_recon_pipeline_offline,
 
 from slam_threer.Config.config import getConfig
 from slam_threer.Dataset.seq_data import SeqData
+from slam_threer.Method.path import createFileFolder
 from slam_threer.Model.image2points import Image2PointsModel
 from slam_threer.Model.local2world import Local2WorldModel
 
@@ -100,4 +101,5 @@ class Detector(object):
         save_folder_path: str,
     ) -> bool:
         """Save reconstruction results to the given folder (recon ply + optional preds)."""
+        os.makedirs(save_folder_path, exist_ok=True)
         return save_recon_result(result, save_folder_path)

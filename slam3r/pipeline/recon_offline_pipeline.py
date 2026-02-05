@@ -21,9 +21,9 @@ def save_recon(views, pred_frame_num, save_dir, save_all_views=False,
     """
     Save the reconstructed point cloud.
     """
-    
+
     save_name = "recon.ply"
-    
+
     # collect the registered point clouds and rgb colors
     if imgs is None:
         imgs = [transform_img(unsqueeze_view(view))[:,::-1] for view in views]
@@ -37,24 +37,24 @@ def save_recon(views, pred_frame_num, save_dir, save_all_views=False,
         rgb = imgs[i].reshape(-1,3)
         pcds.append(registered_pcd)
         rgbs.append(rgb)
-        
+
     if save_all_views:
         for i in range(pred_frame_num):
             save_ply(points=pcds[i], save_path=join(save_dir, f"frame_{i}.ply"), colors=rgbs[i])
-    
+
     res_pcds = np.concatenate(pcds, axis=0)
     res_rgbs = np.concatenate(rgbs, axis=0)
-    
+
     pts_count = len(res_pcds)
     valid_ids = np.arange(pts_count)
-    
+
     # filter out points with gt valid masks
     if valid_masks is not None:
         valid_masks = np.stack(valid_masks, axis=0).reshape(-1)
         # print('filter out ratio of points by gt valid masks:', 1.-valid_masks.astype(float).mean())
     else:
         valid_masks = np.ones(pts_count, dtype=bool)
-    
+
     # filter out points with low confidence
     if registered_confs is not None:
         conf_masks = []
@@ -65,7 +65,7 @@ def save_recon(views, pred_frame_num, save_dir, save_all_views=False,
         conf_masks = np.array(torch.cat(conf_masks))
         valid_ids = valid_ids[conf_masks&valid_masks]
         print('ratio of points filered out: {:.2f}%'.format((1.-len(valid_ids)/pts_count)*100))
-    
+
     # sample from the resulting pcd consisting of all frames
     n_samples = min(num_points_save, len(valid_ids))
     print(f"resampling {n_samples} points from {len(valid_ids)} points")
@@ -83,8 +83,8 @@ def load_model(model_name, weights, device='cuda'):
     ckpt = torch.load(weights, map_location=device)
     print(model.load_state_dict(ckpt['model'], strict=False))
     del ckpt  # in case it occupies memory
-    return model   
-    
+    return model
+
 @torch.no_grad()
 def get_img_tokens(views, model):
     """get img tokens output from encoder,
@@ -591,22 +591,17 @@ def save_recon_result(result: dict, save_folder_path: str) -> bool:
         conf_thres_res=r['conf_thres_l2w'],
         valid_masks=r['valid_masks'],
     )
-    preds_dir = join(save_folder_path, 'preds')
-    if r['save_preds']:
-        os.makedirs(preds_dir, exist_ok=True)
-        print(f">> saving per-frame predictions to {preds_dir}")
-        np.save(join(preds_dir, 'local_pcds.npy'), torch.cat(r['per_frame_res']['i2p_pcds']).cpu().numpy())
-        np.save(join(preds_dir, 'registered_pcds.npy'), torch.cat(r['per_frame_res']['l2w_pcds']).cpu().numpy())
-        np.save(join(preds_dir, 'local_confs.npy'), torch.stack([c.cpu() for c in r['per_frame_res']['i2p_confs']]).numpy())
-        np.save(join(preds_dir, 'registered_confs.npy'), torch.stack([c.cpu() for c in r['per_frame_res']['l2w_confs']]).numpy())
-        np.save(join(preds_dir, 'input_imgs.npy'), np.stack(r['rgb_imgs']))
-        metadata = dict(init_winsize=r['init_num'], kf_stride=r['kf_stride'], init_ref_id=r['init_ref_id'])
-        with open(join(preds_dir, 'metadata.json'), 'w') as f:
-            json.dump(metadata, f)
-    elif r['save_for_eval']:
-        os.makedirs(preds_dir, exist_ok=True)
-        print(f">> saving per-frame predictions to {preds_dir}")
-        np.save(join(preds_dir, 'registered_pcds.npy'), torch.cat(r['per_frame_res']['l2w_pcds']).cpu().numpy())
-        np.save(join(preds_dir, 'registered_confs.npy'), torch.stack([c.cpu() for c in r['per_frame_res']['l2w_confs']]).numpy())
 
+    preds_dir = join(save_folder_path, 'preds')
+    os.makedirs(preds_dir, exist_ok=True)
+
+    print(f">> saving per-frame predictions to {preds_dir}")
+    np.save(join(preds_dir, 'local_pcds.npy'), torch.cat(r['per_frame_res']['i2p_pcds']).cpu().numpy())
+    np.save(join(preds_dir, 'registered_pcds.npy'), torch.cat(r['per_frame_res']['l2w_pcds']).cpu().numpy())
+    np.save(join(preds_dir, 'local_confs.npy'), torch.stack([c.cpu() for c in r['per_frame_res']['i2p_confs']]).numpy())
+    np.save(join(preds_dir, 'registered_confs.npy'), torch.stack([c.cpu() for c in r['per_frame_res']['l2w_confs']]).numpy())
+    np.save(join(preds_dir, 'input_imgs.npy'), np.stack(r['rgb_imgs']))
+    metadata = dict(init_winsize=r['init_num'], kf_stride=r['kf_stride'], init_ref_id=r['init_ref_id'])
+    with open(join(preds_dir, 'metadata.json'), 'w') as f:
+        json.dump(metadata, f)
     return True

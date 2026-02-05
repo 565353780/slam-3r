@@ -1,7 +1,10 @@
 import os
-import torch
 from typing import Optional, List
 
+from slam3r.pipeline.recon_offline_pipeline import scene_recon_pipeline_offline, save_recon_result
+
+from slam_threer.Config.config import getConfig
+from slam_threer.Dataset.seq_data import SeqData
 from slam_threer.Model.image2points import Image2PointsModel
 from slam_threer.Model.local2world import Local2WorldModel
 
@@ -58,4 +61,43 @@ class Detector(object):
             print('\t all image files not exist!')
             return None
 
-        return {}
+        dataset = SeqData(img_dir=valid_image_file_path_list, img_size=224, to_tensor=True)
+        args = getConfig()
+        result = scene_recon_pipeline_offline(
+            self.i2p_model,
+            self.l2w_model,
+            dataset,
+            args,
+        )
+        return result
+
+    def detectImageFolder(
+        self,
+        image_folder_path: str,
+    ) -> Optional[dict]:
+        if not os.path.exists(image_folder_path):
+            print('[ERROR][Detector::detectImageFolder]')
+            print('\t image folder not exist!')
+            print('\t image_folder_path:', image_folder_path)
+            return None
+
+        image_filename_list = os.listdir(image_folder_path)
+        image_filename_list.sort()
+
+        image_file_path_list = []
+        for image_filename in image_filename_list:
+            if image_filename.split('.')[-1] not in ['png', 'jpg', 'jpeg']:
+                continue
+
+            image_file_path = image_folder_path + image_filename
+            image_file_path_list.append(image_file_path)
+
+        return self.detectImageFiles(image_file_path_list)
+
+    def saveResult(
+        self,
+        result: dict,
+        save_folder_path: str,
+    ) -> bool:
+        """Save reconstruction results to the given folder (recon ply + optional preds)."""
+        return save_recon_result(result, save_folder_path)

@@ -6,10 +6,11 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import trimesh
 
-from slam3r.utils.device import to_numpy, collate_with_cat, to_cpu
 from slam3r.inference import loss_of_one_batch_multiview, \
                                 inv, get_multiview_scale
 from slam3r.utils.geometry import xy_grid
+
+from slam_threer.Method.device import to_numpy, collate_with_cat, to_cpu
 
 try:
     import poselib  # noqa
@@ -18,9 +19,9 @@ except Exception as e:
     HAS_POSELIB = False
 
 
-def save_traj(views, pred_frame_num, save_dir, scene_id, args, 
+def save_traj(views, pred_frame_num, save_dir, args, 
               intrinsics = None, traj_name = 'traj'): 
-    save_name = f"{scene_id}_{traj_name}.txt"
+    save_name = f"{traj_name}.txt"
 
     c2ws = []
     H, W, _ = views[0]['pts3d_world'][0].shape

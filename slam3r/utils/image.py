@@ -5,6 +5,8 @@
 # utilitary functions about images (loading/converting...)
 # --------------------------------------------------------
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import torch
 import numpy as np
 import PIL.Image
@@ -119,19 +121,20 @@ def load_images(folder_or_list, size, square_ok=False,
         supported_images_extensions += ['.heic', '.heif']
     supported_images_extensions = tuple(supported_images_extensions)
 
-    imgs = []
-    if verbose > 0:
-        folder_content = tqdm(folder_content, desc='Loading images')
-    for path in folder_content:
-        if not path.lower().endswith(supported_images_extensions):
-            continue
-        img = exif_transpose(PIL.Image.open(os.path.join(root, path))).convert('RGB')
+    # 只保留支持的扩展名，并保持顺序，用于并行加载
+    path_with_idx = [(path, i) for i, path in enumerate(folder_content)
+                     if path.lower().endswith(supported_images_extensions)]
+
+    verbose_lock = threading.Lock()
+
+    def _load_one(args):
+        path, idx = args
+        full_path = os.path.join(root, path)
+        img = exif_transpose(PIL.Image.open(full_path)).convert('RGB')
         W1, H1 = img.size
         if size == 224:
-            # resize short side to 224 (then crop)
             img = _resize_pil_image(img, round(size * max(W1/H1, H1/W1)))
         else:
-            # resize long side to 512
             img = _resize_pil_image(img, size)
         W, H = img.size
         cx, cy = W//2, H//2
@@ -143,15 +146,23 @@ def load_images(folder_or_list, size, square_ok=False,
             if not (square_ok) and W == H:
                 halfh = 3*halfw/4
             img = img.crop((cx-halfw, cy-halfh, cx+halfw, cy+halfh))
-
         W2, H2 = img.size
         if verbose > 1:
-            print(f' - adding {path} with resolution {W1}x{H1} --> {W2}x{H2}')
-        
-        imgs.append(dict(img=ImgNorm(img)[None], true_shape=np.int32(
-            [img.size[::-1]]), idx=len(imgs), instance=str(len(imgs)), label=path))
-            
-    assert imgs, 'no images foud at '+ root 
+            with verbose_lock:
+                print(f' - adding {path} with resolution {W1}x{H1} --> {W2}x{H2}')
+        return dict(img=ImgNorm(img)[None], true_shape=np.int32(
+            [img.size[::-1]]), idx=idx, instance=str(idx), label=path)
+
+    if verbose > 0:
+        iterator = tqdm(path_with_idx, desc='Loading images', total=len(path_with_idx))
+    else:
+        iterator = path_with_idx
+
+    max_workers = min(32, max(1, len(path_with_idx)))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        imgs = list(executor.map(_load_one, iterator))
+
+    assert imgs, 'no images foud at '+ root
     if verbose > 0:
         print(f' ({len(imgs)} images loaded)')
     return imgs

@@ -3,26 +3,26 @@ warnings.filterwarnings("ignore")
 import os
 from os.path import join 
 from tqdm import tqdm
-import argparse
 import json
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
 plt.ion()
-from slam3r.datasets.wild_seq import Seq_Data
-from slam3r.models import Image2PointsModel, Local2WorldModel, inf
-from slam3r.utils.device import to_numpy
 from slam3r.utils.recon_utils import * 
 
+from slam_threer.Model.image2points import Image2PointsModel
+from slam_threer.Model.local2world import Local2WorldModel
+from slam_threer.Method.device import to_numpy
 
-def save_recon(views, pred_frame_num, save_dir, scene_id, save_all_views=False, 
+
+def save_recon(views, pred_frame_num, save_dir, save_all_views=False, 
                       imgs=None, registered_confs=None, 
                       num_points_save=200000, conf_thres_res=3, valid_masks=None):  
     """
     Save the reconstructed point cloud.
     """
     
-    save_name = f"{scene_id}_recon.ply"
+    save_name = "recon.ply"
     
     # collect the registered point clouds and rgb colors
     if imgs is None:
@@ -268,10 +268,12 @@ def adapt_keyframe_stride(views:list, model:Image2PointsModel, win_r = 3,
     print(f'choose {best_stride} as the stride for sampling keyframes, with a mean confidence of {best_conf_mean:.2f}', )
     return best_stride
 
-def scene_recon_pipeline_offline(i2p_model:Image2PointsModel, 
-                         l2w_model:Local2WorldModel, 
-                         dataset, args, 
-                         save_dir="results"):
+def scene_recon_pipeline_offline(
+    i2p_model:Image2PointsModel,
+    l2w_model:Local2WorldModel,
+    dataset,
+    args,
+):
 
     win_r = args.win_r
     num_scene_frame = args.num_scene_frame
@@ -280,8 +282,6 @@ def scene_recon_pipeline_offline(i2p_model:Image2PointsModel,
     conf_thres_i2p = args.conf_thres_i2p
     num_points_save = args.num_points_save
 
-    
-    scene_id = dataset.scene_names[0]
     data_views = dataset[0][:]
     num_views = len(data_views)
     
@@ -548,44 +548,65 @@ def scene_recon_pipeline_offline(i2p_model:Image2PointsModel,
         # transfer the data to cpu if it is not in the buffering set, to save gpu memory
         for i in range(next_register_id):
             to_device(input_views[i], device=args.device if i in buffering_set_ids else 'cpu')
-    
+
     pbar.close()
 
-    
     fail_view = {}
     for i,conf in enumerate(registered_confs_mean):
         if conf < 10:
             fail_view[i] = conf.item()
     print(f'mean confidence for whole scene reconstruction: {torch.tensor(registered_confs_mean).mean().item():.2f}')
     print(f"{len(fail_view)} views with low confidence: ", {key:round(fail_view[key],2) for key in fail_view.keys()})
-    
 
-    save_recon(input_views, num_views, save_dir, scene_id, 
-                      args.save_all_views, rgb_imgs, registered_confs=per_frame_res['l2w_confs'], 
-                      num_points_save=num_points_save, 
-                      conf_thres_res=conf_thres_l2w, valid_masks=valid_masks)
+    # Return all results for caller to save or use (e.g. via Detector.saveResult or save_recon_result)
+    result = dict(
+        input_views=input_views,
+        num_views=num_views,
+        rgb_imgs=rgb_imgs,
+        per_frame_res=per_frame_res,
+        num_points_save=num_points_save,
+        conf_thres_l2w=conf_thres_l2w,
+        valid_masks=valid_masks,
+        init_num=init_num,
+        kf_stride=kf_stride,
+        init_ref_id=init_ref_id,
+        save_all_views=getattr(args, 'save_all_views', False),
+        save_preds=getattr(args, 'save_preds', False),
+        save_for_eval=getattr(args, 'save_for_eval', False),
+    )
+    return result
 
-    # save all the per-frame predictions for further analysis
-    if args.save_preds:
-        preds_dir = join(save_dir, 'preds')
+
+def save_recon_result(result: dict, save_folder_path: str) -> bool:
+    """Save reconstruction result dict to folder (recon ply + optional preds). Used by Detector.saveResult and scripts."""
+    r = result
+    save_recon(
+        r['input_views'],
+        r['num_views'],
+        save_folder_path,
+        save_all_views=r['save_all_views'],
+        imgs=r['rgb_imgs'],
+        registered_confs=r['per_frame_res']['l2w_confs'],
+        num_points_save=r['num_points_save'],
+        conf_thres_res=r['conf_thres_l2w'],
+        valid_masks=r['valid_masks'],
+    )
+    preds_dir = join(save_folder_path, 'preds')
+    if r['save_preds']:
         os.makedirs(preds_dir, exist_ok=True)
         print(f">> saving per-frame predictions to {preds_dir}")
-        np.save(join(preds_dir, 'local_pcds.npy'), torch.cat(per_frame_res['i2p_pcds']).cpu().numpy())
-        np.save(join(preds_dir, 'registered_pcds.npy'), torch.cat(per_frame_res['l2w_pcds']).cpu().numpy())
-        np.save(join(preds_dir, 'local_confs.npy'), torch.stack([conf.cpu() for conf in per_frame_res['i2p_confs']]).numpy())
-        np.save(join(preds_dir, 'registered_confs.npy'), torch.stack([conf.cpu() for conf in per_frame_res['l2w_confs']]).numpy())
-        np.save(join(preds_dir, 'input_imgs.npy'), np.stack(rgb_imgs))
-        
-        metadata = dict(scene_id=scene_id,
-                        init_winsize=init_num,
-                        kf_stride=kf_stride,
-                        init_ref_id=init_ref_id)
+        np.save(join(preds_dir, 'local_pcds.npy'), torch.cat(r['per_frame_res']['i2p_pcds']).cpu().numpy())
+        np.save(join(preds_dir, 'registered_pcds.npy'), torch.cat(r['per_frame_res']['l2w_pcds']).cpu().numpy())
+        np.save(join(preds_dir, 'local_confs.npy'), torch.stack([c.cpu() for c in r['per_frame_res']['i2p_confs']]).numpy())
+        np.save(join(preds_dir, 'registered_confs.npy'), torch.stack([c.cpu() for c in r['per_frame_res']['l2w_confs']]).numpy())
+        np.save(join(preds_dir, 'input_imgs.npy'), np.stack(r['rgb_imgs']))
+        metadata = dict(init_winsize=r['init_num'], kf_stride=r['kf_stride'], init_ref_id=r['init_ref_id'])
         with open(join(preds_dir, 'metadata.json'), 'w') as f:
             json.dump(metadata, f)
-    # save the reconstructed point clouds and confidences for evaluation
-    elif args.save_for_eval:
-        preds_dir = join(save_dir, 'preds')
+    elif r['save_for_eval']:
         os.makedirs(preds_dir, exist_ok=True)
         print(f">> saving per-frame predictions to {preds_dir}")
-        np.save(join(preds_dir, 'registered_pcds.npy'), torch.cat(per_frame_res['l2w_pcds']).cpu().numpy())
-        np.save(join(preds_dir, 'registered_confs.npy'), torch.stack([conf.cpu() for conf in per_frame_res['l2w_confs']]).numpy())
+        np.save(join(preds_dir, 'registered_pcds.npy'), torch.cat(r['per_frame_res']['l2w_pcds']).cpu().numpy())
+        np.save(join(preds_dir, 'registered_confs.npy'), torch.stack([c.cpu() for c in r['per_frame_res']['l2w_confs']]).numpy())
+
+    return True

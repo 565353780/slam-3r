@@ -25,12 +25,12 @@ class Multiview3D(nn.Module, PyTorchModelHubMixin):
     def __init__(self,
                  img_size=224,           # input image size
                  patch_size=16,          # patch_size 
-                 enc_embed_dim=768,      # encoder feature dimension
-                 enc_depth=12,           # encoder depth 
-                 enc_num_heads=12,       # encoder number of heads in the transformer block 
-                 dec_embed_dim=512,      # decoder feature dimension 
-                 dec_depth=8,            # decoder depth 
-                 dec_num_heads=16,       # decoder number of heads in the transformer block 
+                 enc_embed_dim=1024,      # encoder feature dimension
+                 enc_depth=24,           # encoder depth 
+                 enc_num_heads=16,       # encoder number of heads in the transformer block 
+                 dec_embed_dim=768,      # decoder feature dimension 
+                 dec_depth=12,            # decoder depth 
+                 dec_num_heads=12,       # decoder number of heads in the transformer block 
                  mlp_ratio=4,
                  norm_layer=partial(nn.LayerNorm, eps=1e-6),
                  norm_im2_in_dec=True,   # whether to apply normalization of the 'memory' = (second image) in the decoder 
@@ -45,9 +45,9 @@ class Multiview3D(nn.Module, PyTorchModelHubMixin):
                  need_encoder=True,      # whether to create the encoder, or omit it
                  mv_dec1 = "MultiviewDecoderBlock_max", # type of decoder block 
                  mv_dec2 = "MultiviewDecoderBlock_max",
-                 enc_minibatch = 4,  # minibatch size for encoding multiple views
+                 enc_minibatch = 11,  # minibatch size for encoding multiple views
                  input_type = 'img',
-                ):    
+                ):
 
         super().__init__()
         if isinstance(img_size, int):

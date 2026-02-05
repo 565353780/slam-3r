@@ -3,8 +3,7 @@ from slam3r.pipeline.recon_offline_pipeline import scene_recon_pipeline_offline
 import argparse
 from slam3r.utils.recon_utils import * 
 from slam3r.datasets.wild_seq import Seq_Data
-from slam3r.models import Image2PointsModel, Local2WorldModel, inf
-from slam3r.utils.device import to_numpy
+from slam3r.models import Image2PointsModel, Local2WorldModel
 import os
 
 

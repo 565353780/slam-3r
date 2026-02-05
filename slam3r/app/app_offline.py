@@ -598,13 +598,6 @@ def main_offline(parser: argparse.ArgumentParser):
     else:
         server_name = '0.0.0.0' if args.local_network else '127.0.0.1'
 
-    i2p_model = Image2PointsModel.from_pretrained('siyan824/slam3r_i2p')
-    l2w_model = Local2WorldModel.from_pretrained('siyan824/slam3r_l2w')
-    i2p_model.to(args.device)
-    l2w_model.to(args.device)
-    i2p_model.eval()
-    l2w_model.eval()
-
     # slam3r will write the 3D model inside tmpdirname
     with tempfile.TemporaryDirectory(suffix='slam3r_gradio_demo') as tmpdirname:
         main_demo(i2p_model, l2w_model, args.device, tmpdirname, server_name, args.server_port)

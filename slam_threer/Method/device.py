@@ -1,11 +1,5 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# utilitary functions for DUSt3R
-# --------------------------------------------------------
-import numpy as np
 import torch
+import numpy as np
 
 
 def todevice(batch, device, callback=None, non_blocking=False):
@@ -86,4 +80,3 @@ class MyNvtxRange():
     def __exit__(self, type, value, traceback):
         torch.cuda.synchronize()
         torch.cuda.nvtx.range_pop()
-        

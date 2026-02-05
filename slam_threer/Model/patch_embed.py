@@ -1,12 +1,5 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# PatchEmbed implementation for DUST3R,
-# in particular ManyAR_PatchEmbed that Handle images with non-square aspect ratio
-# --------------------------------------------------------
 import torch
-from .blocks import PatchEmbed  # noqa
+from slam_threer.Model.blocks import PatchEmbed  # noqa
 
 def get_patch_embed(patch_embed_cls, img_size, patch_size, enc_embed_dim):
     assert patch_embed_cls in ['PatchEmbedDust3R', 'ManyAR_PatchEmbed']
